@@ -158,7 +158,7 @@ class Notifier(object):
 
     def create_port_changed_event(self, obj):
         device_id = ""
-        event self._get_network_changed_event(device_id)
+        event = self._get_network_changed_event(device_id)
         self.send_events([event])
 
     def _is_compute_port(self, port):
