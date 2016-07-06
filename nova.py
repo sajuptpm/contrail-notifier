@@ -31,6 +31,13 @@ from neutron.notifiers import batch_notifier
 from neutron.openstack.common import uuidutils
 
 
+##SM
+from pysandesh.sandesh_base import *
+from pysandesh.sandesh_logger import *
+import bottle
+
+
+
 LOG = logging.getLogger(__name__)
 
 VIF_UNPLUGGED = 'network-vif-unplugged'
@@ -51,7 +58,7 @@ class DefaultAuthPlugin(v2_auth.Password):
     instead and remove this class.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs):--
         self._endpoint_override = kwargs.pop('endpoint_override', None)
         super(DefaultAuthPlugin, self).__init__(**kwargs)
 
@@ -64,11 +71,28 @@ class DefaultAuthPlugin(v2_auth.Password):
 
 class Notifier(object):
 
-    def __init__(self):
+    def __init__(self, conf_sections):
+        try:
+            self._nova_url = conf_sections.get('NOVA', 'nova_url')
+        except ConfigParser.NoOptionError:
+            self._nova_url = "https://compute.jiocloud.com:8774/v2"
+
+        try:
+            self._nova_region_name = conf_sections.get('NOVA', 'nova_region_name')
+        except ConfigParser.NoOptionError:
+            self._nova_region_name = ""
+
+        try:
+            self._notify_nova_on_port_data_changes = conf_sections.get('NOVA', 'notify_nova_on_port_data_changes')
+        except ConfigParser.NoOptionError:
+            self._notify_nova_on_port_data_changes = True
+
+
         # FIXME(jamielennox): A notifier is being created for each Controller
         # and each Notifier is handling it's own auth. That means that we are
         # authenticating the exact same thing len(controllers) times. This
         # should be an easy thing to optimize.
+        """
         auth = ks_auth.load_from_conf_options(cfg.CONF, 'nova')
         endpoint_override = None
 
@@ -107,6 +131,18 @@ class Notifier(object):
             extensions=[server_external_events])
         self.batch_notifier = batch_notifier.BatchNotifier(
             cfg.CONF.send_events_interval, self.send_events)
+        """
+
+    def get_nova_conn(self):
+        novaclient_cls = nova_client.get_client_class(NOVA_API_VERSION)
+        server_external_events = importutils.import_module(
+            novaclient_cls.__module__.replace(
+                ".client", ".contrib.server_external_events"))
+        auth_token = bottle.request.get_header('X-Auth-Token')
+        conn = novaclient_cls(auth_token=auth_token,
+                            bypass_url=self._nova_url,
+                            extensions=[server_external_events])
+        return conn
 
     def _is_compute_port(self, port):
         try:
