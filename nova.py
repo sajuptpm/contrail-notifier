@@ -71,6 +71,11 @@ class DefaultAuthPlugin(v2_auth.Password):
 
 class Notifier(object):
 
+    ACTION_MAP = {'CREATE' : 'create',
+                'UPDATE' : 'update',
+                'DELETE' : 'delete',
+                }
+
     def __init__(self, conf_sections):
         try:
             self._nova_url = conf_sections.get('NOVA', 'nova_url')
@@ -144,6 +149,18 @@ class Notifier(object):
                             extensions=[server_external_events])
         return conn
 
+    def get_action(self, action):
+        return self.ACTION_MAP[action]
+
+    def _get_network_changed_event(self, device_id):
+        return {'name': 'network-changed',
+                'server_uuid': device_id}
+
+    def create_port_changed_event(self, obj):
+        device_id = ""
+        event self._get_network_changed_event(device_id)
+        self.send_events([event])
+
     def _is_compute_port(self, port):
         try:
             if (port['device_id'] and uuidutils.is_uuid_like(port['device_id'])
@@ -152,10 +169,6 @@ class Notifier(object):
         except (KeyError, AttributeError):
             pass
         return False
-
-    def _get_network_changed_event(self, device_id):
-        return {'name': 'network-changed',
-                'server_uuid': device_id}
 
     @property
     def _plugin(self):
@@ -175,8 +188,8 @@ class Notifier(object):
         :param returned_obj: the body returned to client as result of action.
         """
 
-        if not cfg.CONF.notify_nova_on_port_data_changes:
-            return
+        #if not cfg.CONF.notify_nova_on_port_data_changes:
+        #    return
 
         # When neutron re-assigns floating ip from an original instance
         # port to a new instance port without disassociate it first, an
@@ -188,13 +201,15 @@ class Notifier(object):
             disassociate_returned_obj = {'floatingip': {'port_id': None}}
             event = self.create_port_changed_event(action, original_obj,
                                                    disassociate_returned_obj)
-            self.batch_notifier.queue_event(event)
+            #self.batch_notifier.queue_event(event)
+            print "========even1=========", event
 
         event = self.create_port_changed_event(action, original_obj,
                                                returned_obj)
-        self.batch_notifier.queue_event(event)
+        print "========even2=========", event
+        #self.batch_notifier.queue_event(event)
 
-    def create_port_changed_event(self, action, original_obj, returned_obj):
+    def _create_port_changed_event(self, action, original_obj, returned_obj):
         port = None
         if action == 'update_port':
             port = returned_obj['port']
@@ -274,8 +289,9 @@ class Notifier(object):
 
     def send_events(self, batched_events):
         LOG.debug("Sending events: %s", batched_events)
+        nclient = self.get_nova_conn()
         try:
-            response = self.nclient.server_external_events.create(
+            response = nclient.server_external_events.create(
                 batched_events)
         except nova_exceptions.NotFound:
             LOG.warning(_LW("Nova returned NotFound for event: %s"),
