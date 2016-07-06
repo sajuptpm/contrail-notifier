@@ -58,7 +58,7 @@ class DefaultAuthPlugin(v2_auth.Password):
     instead and remove this class.
     """
 
-    def __init__(self, **kwargs):--
+    def __init__(self, **kwargs):
         self._endpoint_override = kwargs.pop('endpoint_override', None)
         super(DefaultAuthPlugin, self).__init__(**kwargs)
 
